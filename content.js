@@ -198,13 +198,19 @@ function markInitialResponsesAsPlayed() {
 const STABILITY_CHECK_INTERVAL = 500;
 const STABILITY_THRESHOLD = 4; // 2 seconds of stability
 
+function isGenerating() {
+  // Check for the "Stop response" or "Stop generating" button which indicates generation is in progress.
+  // This serves as a proxy for the "spinning Gemini sign".
+  return !!document.querySelector('button[aria-label*="Stop response"], button[aria-label*="Stop generating"]');
+}
+
 function waitForStabilityAndPlay(trigger, parent) {
   let lastText = "";
   let stableCount = 0;
-  
+
   // Safety: Stop checking after a maximum time (e.g., 2 minutes) to prevent memory leaks
   let checks = 0;
-  const MAX_CHECKS = (120 * 1000) / STABILITY_CHECK_INTERVAL; 
+  const MAX_CHECKS = (120 * 1000) / STABILITY_CHECK_INTERVAL;
 
   const intervalId = setInterval(() => {
     checks++;
@@ -214,14 +220,25 @@ function waitForStabilityAndPlay(trigger, parent) {
       return;
     }
 
+    // Step 0: strictly wait if Gemini is still generating
+    if (isGenerating()) {
+      stableCount = 0;
+      // We keep lastText updated so we don't treat the static text immediately after stop as "newly stable"
+      // if it hasn't changed since the last check. 
+      // Actually, we want to start counting stability *after* generation stops.
+      const text = getTextFromButton(trigger);
+      if (text) lastText = text;
+      return;
+    }
+
     const currentText = getTextFromButton(trigger);
 
     // If we can't find text, it might be loading. 
     // If we had text and lost it, something is wrong.
     if (!currentText) {
       // Reset stable count if we lose text, but don't abort immediately
-      stableCount = 0; 
-      return; 
+      stableCount = 0;
+      return;
     }
 
     if (currentText.length > lastText.length) {
@@ -236,12 +253,12 @@ function waitForStabilityAndPlay(trigger, parent) {
 
     if (stableCount >= STABILITY_THRESHOLD) {
       clearInterval(intervalId);
-      
+
       // Mark as played
       parent.dataset.geminiAutoPlayed = "true";
       // Remove waiting status
       delete parent.dataset.geminiWaiting;
-      
+
       triggerRead(currentText);
     }
   }, STABILITY_CHECK_INTERVAL);
