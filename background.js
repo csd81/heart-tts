@@ -10,9 +10,14 @@ async function processAndPlay(text) {
   if (!text) return;
 
   // Improved Splitting: Split by newlines OR sentences followed by a space
+  // Improved Splitting: Handles abbreviations (Mr., Dr.) and numbers (1.5) correctly
+  // Split by:
+  // 1. Sentence boundaries: Period/Exclamation/Question mark, followed by whitespace, followed by Capital letter or Number.
+  //    (Avoiding split if preceded by common abbreviations)
+  // 2. OR Newlines
   const chunks = text
-    .split(/(?<=[.!?])\s+|\n+/)
-    .filter(chunk => chunk.trim().length > 2); // Ignore tiny fragments
+    .split(/(?<!\b(?:Mr|Mrs|Ms|Dr|Jr|Sr|Prof)\.)(?<=[.!?])\s+(?=[A-Z0-9])|\n+/)
+    .filter(chunk => chunk.trim().length > 0); // Ignore empty strings
 
   const settings = await chrome.storage.local.get(['selectedVoice', 'playbackSpeed']);
   const currentVoice = settings.selectedVoice || "af_bella";
