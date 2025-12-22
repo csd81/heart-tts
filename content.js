@@ -195,6 +195,58 @@ function markInitialResponsesAsPlayed() {
   });
 }
 
+const STABILITY_CHECK_INTERVAL = 500;
+const STABILITY_THRESHOLD = 4; // 2 seconds of stability
+
+function waitForStabilityAndPlay(trigger, parent) {
+  let lastText = "";
+  let stableCount = 0;
+  
+  // Safety: Stop checking after a maximum time (e.g., 2 minutes) to prevent memory leaks
+  let checks = 0;
+  const MAX_CHECKS = (120 * 1000) / STABILITY_CHECK_INTERVAL; 
+
+  const intervalId = setInterval(() => {
+    checks++;
+    if (checks > MAX_CHECKS) {
+      clearInterval(intervalId);
+      parent.dataset.geminiWaiting = "false"; // Reset so we retry if needed
+      return;
+    }
+
+    const currentText = getTextFromButton(trigger);
+
+    // If we can't find text, it might be loading. 
+    // If we had text and lost it, something is wrong.
+    if (!currentText) {
+      // Reset stable count if we lose text, but don't abort immediately
+      stableCount = 0; 
+      return; 
+    }
+
+    if (currentText.length > lastText.length) {
+      lastText = currentText;
+      stableCount = 0;
+      // console.log("Text growing...", currentText.length);
+    } else {
+      // Text length hasn't increased
+      stableCount++;
+      // console.log("Text stable...", stableCount);
+    }
+
+    if (stableCount >= STABILITY_THRESHOLD) {
+      clearInterval(intervalId);
+      
+      // Mark as played
+      parent.dataset.geminiAutoPlayed = "true";
+      // Remove waiting status
+      delete parent.dataset.geminiWaiting;
+      
+      triggerRead(currentText);
+    }
+  }, STABILITY_CHECK_INTERVAL);
+}
+
 function handleAutoPlay() {
   if (!window.location.hostname.includes("gemini.google.com")) return;
 
@@ -213,21 +265,14 @@ function handleAutoPlay() {
   const lastTrigger = triggers[triggers.length - 1];
   const parent = lastTrigger.parentElement;
 
-  if (parent && parent.dataset.geminiAutoPlayed !== "true") {
-    // Found a new, unplayed response
-
-    // Mark it immediately so we don't try to play it multiple times
-    parent.dataset.geminiAutoPlayed = "true";
-
-    // Get text and play
-    // We add a small delay to ensure text content is fully settled if needed, 
-    // although existence of buttons usually means it's done.
-    setTimeout(() => {
-      const text = getTextFromButton(lastTrigger);
-      if (text) {
-        triggerRead(text);
-      }
-    }, 500);
+  if (parent) {
+    // If not played AND not currently waiting for stability
+    if (parent.dataset.geminiAutoPlayed !== "true" && parent.dataset.geminiWaiting !== "true") {
+      // Found a new, unplayed response
+      // console.log("New response detected, waiting for stability...");
+      parent.dataset.geminiWaiting = "true";
+      waitForStabilityAndPlay(lastTrigger, parent);
+    }
   }
 }
 
