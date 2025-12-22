@@ -173,17 +173,78 @@ function triggerRead(text) {
   });
 }
 
+// --- Auto-Play Logic ---
+
+function markInitialResponsesAsPlayed() {
+  if (!window.location.hostname.includes("gemini.google.com")) return;
+
+  const triggers = document.querySelectorAll(`
+    button[aria-label*="Copy"],
+    button[aria-label*="Share"],
+    button[aria-label*="Good response"],
+    button[aria-label*="Bad response"],
+    button[aria-label*="Modify"],
+    button[aria-label*="Google It"]
+  `);
+
+  triggers.forEach(trigger => {
+    const parent = trigger.parentElement;
+    if (parent) {
+      parent.dataset.geminiAutoPlayed = "true";
+    }
+  });
+}
+
+function handleAutoPlay() {
+  if (!window.location.hostname.includes("gemini.google.com")) return;
+
+  const triggers = document.querySelectorAll(`
+    button[aria-label*="Copy"],
+    button[aria-label*="Share"],
+    button[aria-label*="Good response"],
+    button[aria-label*="Bad response"],
+    button[aria-label*="Modify"],
+    button[aria-label*="Google It"]
+  `);
+
+  if (triggers.length === 0) return;
+
+  // Check the very last button (latest response)
+  const lastTrigger = triggers[triggers.length - 1];
+  const parent = lastTrigger.parentElement;
+
+  if (parent && parent.dataset.geminiAutoPlayed !== "true") {
+    // Found a new, unplayed response
+
+    // Mark it immediately so we don't try to play it multiple times
+    parent.dataset.geminiAutoPlayed = "true";
+
+    // Get text and play
+    // We add a small delay to ensure text content is fully settled if needed, 
+    // although existence of buttons usually means it's done.
+    setTimeout(() => {
+      const text = getTextFromButton(lastTrigger);
+      if (text) {
+        triggerRead(text);
+      }
+    }, 500);
+  }
+}
+
 // Start Observer
 const observer = new MutationObserver((mutations) => {
   injectReadButtons();
+  handleAutoPlay();
 });
 
 // We need to wait for body
 if (document.body) {
+  markInitialResponsesAsPlayed(); // Mark existing ones as played so we don't auto-play them on reload
   observer.observe(document.body, { childList: true, subtree: true });
-  injectReadButtons(); // Initial run
+  injectReadButtons();
 } else {
   document.addEventListener('DOMContentLoaded', () => {
+    markInitialResponsesAsPlayed();
     observer.observe(document.body, { childList: true, subtree: true });
     injectReadButtons();
   });
