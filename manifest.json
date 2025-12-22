@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Kokoro TTS - Voice Selector",
+  "version": "1.2",
+  "permissions": ["contextMenus", "offscreen", "scripting", "storage"],
+  "host_permissions": ["http://127.0.0.1:8000/*", "<all_urls>"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["styles.css"]
+    }
+  ]
+}
