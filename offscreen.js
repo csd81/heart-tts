@@ -37,10 +37,15 @@ function stopPlayback() {
   }
   playbackQueue = [];
   isPlaying = false;
+  
+  // Clear highlights when playback stops entirely
+  chrome.runtime.sendMessage({
+    type: "FORWARD_TO_ACTIVE_TAB",
+    action: "CLEAR_HIGHLIGHT"
+  }).catch(() => {});
 }
 
 async function playNextChunk(streamId) {
-  // Check if this execution belongs to the current active stream
   if (streamId !== currentStreamId) {
     console.log("Stream changed, ignoring playNextChunk for old stream.");
     return;
@@ -49,10 +54,15 @@ async function playNextChunk(streamId) {
   if (playbackQueue.length === 0) {
     console.log("Queue finished.");
     isPlaying = false;
+    
+    // Clear highlights when queue is done
+    chrome.runtime.sendMessage({
+      type: "FORWARD_TO_ACTIVE_TAB",
+      action: "CLEAR_HIGHLIGHT"
+    }).catch(() => {});
     return;
   }
 
-  // Initialize AudioContext if needed
   if (!audioContext) {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
   }
@@ -61,10 +71,19 @@ async function playNextChunk(streamId) {
   }
 
   isPlaying = true;
-  // Clean text: remove special quotes that might break the server
-  let text = playbackQueue.shift()
+  
+  // Save the original text to send to the content script for accurate highlighting
+  let originalText = playbackQueue.shift();
+  let text = originalText
     .replace(/[\u201C\u201D]/g, '"')
     .replace(/[\u2018\u2019]/g, "'");
+
+  // Tell the active tab to highlight this specific sentence
+  chrome.runtime.sendMessage({
+    type: "FORWARD_TO_ACTIVE_TAB",
+    action: "HIGHLIGHT_TEXT",
+    text: originalText
+  }).catch(() => {});
 
   console.log("Playing chunk:", text.substring(0, 30) + "...");
 
@@ -82,13 +101,9 @@ async function playNextChunk(streamId) {
     if (!response.ok) throw new Error("Server Status: " + response.status);
 
     const arrayBuffer = await response.arrayBuffer();
-
-    // Double check stream ID after async fetch
     if (streamId !== currentStreamId) return;
 
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-    // Triple check after decode
     if (streamId !== currentStreamId) return;
 
     const source = audioContext.createBufferSource();
@@ -105,10 +120,7 @@ async function playNextChunk(streamId) {
 
   } catch (err) {
     console.error("Playback failed for chunk:", text, err);
-    // If error occurs, we still try next chunk in SAME stream?
-    // Or we stop? Usually better to try next.
     if (streamId === currentStreamId) {
-      // Maybe wait a bit?
       playNextChunk(streamId);
     }
 

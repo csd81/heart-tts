@@ -76,12 +76,10 @@ document.getElementById('readPage').addEventListener('click', async () => {
   if (!tab) return;
 
   try {
-    const response = await chrome.tabs.sendMessage(tab.id, { action: "GET_TEXT_FROM_HERE" });
+    // NEW: Use a dedicated action for reading the whole page
+    const response = await chrome.tabs.sendMessage(tab.id, { action: "GET_FULL_PAGE_TEXT" });
+    
     if (response && response.text) {
-      // Trigger playback via background (or directly here if logic is duplicated)
-      // Background has logic to split and play. Let's send a message to background to play it.
-      // Actually background listens for "PLAY_TEXT" from content script. We can use that.
-
       chrome.runtime.sendMessage({
         action: "PLAY_TEXT",
         text: response.text

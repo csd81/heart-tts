@@ -43,10 +43,22 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 });
 
-// Listen for direct requests from content script (Button click)
+// Listen for direct requests from content script (Button click) or offscreen doc
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "PLAY_TEXT" && request.text) {
     processAndPlay(request.text);
+  }
+
+  // NEW: Forward highlight commands from offscreen doc to the active tab
+  if (request.type === "FORWARD_TO_ACTIVE_TAB") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs.length > 0) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          action: request.action,
+          text: request.text
+        }).catch(() => {}); // Ignore errors if the tab is closed/loading
+      }
+    });
   }
 });
 
