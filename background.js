@@ -6,18 +6,18 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-async function processAndPlay(text) {
-  if (!text) return;
+async function processAndPlay(inputData) {
+  if (!inputData) return;
 
-  // Improved Splitting: Split by newlines OR sentences followed by a space
-  // Improved Splitting: Handles abbreviations (Mr., Dr.) and numbers (1.5) correctly
-  // Split by:
-  // 1. Sentence boundaries: Period/Exclamation/Question mark, followed by whitespace, followed by Capital letter or Number.
-  //    (Avoiding split if preceded by common abbreviations)
-  // 2. OR Newlines
-  const chunks = text
-    .split(/(?<!\b(?:Mr|Mrs|Ms|Dr|Jr|Sr|Prof)\.)(?<=[.!?])\s+(?=[A-Z0-9])|\n+/)
-    .filter(chunk => chunk.trim().length > 0); // Ignore empty strings
+  let chunks = [];
+  if (Array.isArray(inputData)) {
+    chunks = inputData;
+  } else {
+    // Fallback if we get raw text (from right-click menu)
+    chunks = inputData
+      .split(/\r?\n\s*\n|\n/) // Split by blank lines or newlines
+      .filter(chunk => chunk.trim().length > 0); // Ignore empty strings
+  }
 
 // Pull the model, voice, and speed from storage
   const settings = await chrome.storage.local.get(['selectedModel', 'selectedVoice', 'playbackSpeed']);
@@ -48,8 +48,12 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 // Listen for direct requests from content script (Button click) or offscreen doc
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "PLAY_TEXT" && request.text) {
-    processAndPlay(request.text);
+  if (request.action === "PLAY_TEXT") {
+    if (request.chunks) {
+      processAndPlay(request.chunks);
+    } else if (request.text) {
+      processAndPlay(request.text);
+    }
   }
 
   // NEW: Forward highlight commands from offscreen doc to the active tab
@@ -120,7 +124,9 @@ chrome.commands.onCommand.addListener(async (command) => {
     if (!tab) return;
     try {
       const response = await chrome.tabs.sendMessage(tab.id, { action: "GET_FULL_PAGE_TEXT" });
-      if (response && response.text) {
+      if (response && response.chunks && response.chunks.length > 0) {
+        processAndPlay(response.chunks);
+      } else if (response && response.text) {
         processAndPlay(response.text);
       }
     } catch (e) {

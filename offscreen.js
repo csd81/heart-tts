@@ -1,4 +1,5 @@
 let playbackQueue = [];
+let currentIndex = 0;
 let isPlaying = false;
 let currentSource = null;
 let audioContext = null;
@@ -18,6 +19,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     currentVoice = message.voice || "Sarah";
     currentSpeed = message.speed || 1.0;
     playbackQueue = message.chunks;
+    currentIndex = 0;
 
     if (!isPlaying) {
       playNextChunk(thisStreamId);
@@ -29,12 +31,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     } else {
       sendResponse({ wasPlaying: false });
     }
+  } else if (message.type === "NEXT_CHUNK") {
+    if (currentSource) {
+      currentSource.onended = null;
+      try { currentSource.stop(); } catch(e) {}
+      currentSource = null;
+    }
+    currentIndex++;
+    playNextChunk(currentStreamId);
+  } else if (message.type === "PREV_CHUNK") {
+    if (currentSource) {
+      currentSource.onended = null;
+      try { currentSource.stop(); } catch(e) {}
+      currentSource = null;
+    }
+    currentIndex = Math.max(0, currentIndex - 1);
+    playNextChunk(currentStreamId);
   }
   return true;
 });
 
 function stopPlayback() {
   if (currentSource) {
+    currentSource.onended = null;
     try {
       currentSource.stop();
     } catch (e) {
@@ -43,6 +62,7 @@ function stopPlayback() {
     currentSource = null;
   }
   playbackQueue = [];
+  currentIndex = 0;
   isPlaying = false;
   
   // Clear highlights when playback stops entirely
@@ -58,7 +78,7 @@ async function playNextChunk(streamId) {
     return;
   }
 
-  if (playbackQueue.length === 0) {
+  if (currentIndex >= playbackQueue.length) {
     console.log("Queue finished.");
     isPlaying = false;
     
@@ -80,7 +100,8 @@ async function playNextChunk(streamId) {
   isPlaying = true;
   
   // Save the original text to send to the content script for accurate highlighting
-  let originalText = playbackQueue.shift();
+  let originalText = playbackQueue[currentIndex];
+  if (!originalText) return;
   let text = originalText
     .replace(/[\u201C\u201D]/g, '"')
     .replace(/[\u2018\u2019]/g, "'");
@@ -127,6 +148,7 @@ async function playNextChunk(streamId) {
 
     source.onended = () => {
       currentSource = null;
+      currentIndex++;
       playNextChunk(streamId);
     };
 

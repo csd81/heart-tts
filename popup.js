@@ -4,6 +4,9 @@ const speedRange = document.getElementById('speedRange');
 const speedValue = document.getElementById('speedValue');
 const playButton = document.getElementById('playSample');
 const readPageButton = document.getElementById('readPage');
+const stopBtn = document.getElementById('stopBtn');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
 
 // 1. Fetch config from server on load
 async function fetchConfig() {
@@ -150,14 +153,24 @@ playButton.addEventListener('click', async () => {
   });
 });
 
-// 4. Handle READ PAGE button
+// 5. Handle BACK/FORWARD/STOP buttons
+if (prevBtn) prevBtn.addEventListener('click', () => chrome.runtime.sendMessage({ type: "PREV_CHUNK" }));
+if (nextBtn) nextBtn.addEventListener('click', () => chrome.runtime.sendMessage({ type: "NEXT_CHUNK" }));
+if (stopBtn) stopBtn.addEventListener('click', () => chrome.runtime.sendMessage({ type: "TOGGLE_PLAYBACK" }));
+
+// 6. Handle READ PAGE button
 readPageButton.addEventListener('click', async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) return;
 
   try {
     const response = await chrome.tabs.sendMessage(tab.id, { action: "GET_FULL_PAGE_TEXT" });
-    if (response && response.text) {
+    if (response && response.chunks && response.chunks.length > 0) {
+      chrome.runtime.sendMessage({
+        action: "PLAY_TEXT",
+        chunks: response.chunks
+      });
+    } else if (response && response.text) {
       chrome.runtime.sendMessage({
         action: "PLAY_TEXT",
         text: response.text

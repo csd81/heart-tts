@@ -122,15 +122,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     document.body;
     }
     
-    if (mainContent && mainContent.innerText) {
+    if (mainContent) {
       // NEW: Initialize the tracker at the very top of the article
       ttsCursorRange = document.createRange();
       ttsCursorRange.selectNodeContents(mainContent);
       ttsCursorRange.collapse(true);
 
-      return sendResponse({ text: mainContent.innerText.trim() });
+      const chunks = [];
+      const blocks = mainContent.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre');
+      
+      blocks.forEach(block => {
+        // Skip elements that are hidden
+        if (block.offsetParent === null) return;
+        
+        // Skip list items that are just containers for other blocks we already extracted
+        if (block.tagName === 'LI' && block.querySelector('p, h1, h2, h3, h4, h5, h6, pre')) return;
+
+        let text = block.innerText;
+        if (text && text.trim()) {
+           chunks.push(text.trim());
+        }
+      });
+
+      // If we couldn't find blocks for some reason, fallback to innerText split by newlines
+      if (chunks.length === 0 && mainContent.innerText) {
+         return sendResponse({ chunks: mainContent.innerText.trim().split(/\r?\n\s*\n|\n/).filter(c => c.trim().length > 0) });
+      }
+
+      return sendResponse({ chunks: chunks });
     } else {
-      return sendResponse({ text: "" });
+      return sendResponse({ chunks: [] });
     }
   }
 
