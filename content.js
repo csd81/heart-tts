@@ -12,54 +12,52 @@ function clearHighlights() {
     while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
     parent.removeChild(mark);
   });
+
+  // clear fallback highlights for blocks
+  document.querySelectorAll('.tts-highlight-fallback').forEach(el => {
+    el.classList.remove('tts-highlight-fallback');
+    el.style.backgroundColor = '';
+  });
 }
 
 function highlightText(searchText) {
   clearHighlights();
   if (!searchText || !searchText.trim()) return;
 
-  const textToFind = searchText.trim();
-  const selection = window.getSelection();
+  // Since tables and pre blocks are sent as chunks, finding them exactly via window.find() often fails
+  // due to invisible newlines or whitespace. We map the chunks back to the DOM nodes.
   
-  // Save user's current selection so we don't annoy them
-  const originalRange = selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
-  
-  selection.removeAllRanges();
+  // Find the exact node that corresponds to this chunk text
+  let targetBlock = null;
+  const blocks = document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, table');
+  for (let block of blocks) {
+    if (block.offsetParent === null) continue;
+    if (block.tagName === 'LI' && block.querySelector('p, h1, h2, h3, h4, h5, h6, pre, table')) continue;
+    if (block.tagName !== 'TABLE' && block.closest('table')) continue;
+    if (block.tagName !== 'PRE' && block.closest('pre')) continue;
 
-  // NEW: If we have a tracked position, start searching FORWARD from there
-  if (ttsCursorRange) {
-    const searchStartRange = ttsCursorRange.cloneRange();
-    searchStartRange.collapse(false); // Move to the end of the last highlighted sentence
-    selection.addRange(searchStartRange);
+    if (block.innerText && block.innerText.trim() === searchText.trim()) {
+      targetBlock = block;
+      break;
+    }
   }
 
-  // window.find now searches forward from the hidden cursor
-  const found = window.find(textToFind, false, false, true, false, false, false);
-
-  if (found && selection.rangeCount > 0) {
-    const range = selection.getRangeAt(0).cloneRange();
-    
-    // NEW: Save this new position as the starting point for the next sentence
-    ttsCursorRange = range.cloneRange();
+  if (targetBlock) {
+    const range = document.createRange();
+    range.selectNodeContents(targetBlock);
     
     // Attempt non-destructive CSS Highlight API (Chrome 105+)
     if (typeof Highlight !== 'undefined' && typeof CSS !== 'undefined' && CSS.highlights) {
       const highlight = new Highlight(range);
       CSS.highlights.set('tts-highlight', highlight);
     } else {
-      // Fallback: Wrap in a <mark> tag
-      try {
-        const mark = document.createElement('mark');
-        mark.className = 'tts-highlight';
-        mark.appendChild(range.extractContents());
-        range.insertNode(mark);
-      } catch (e) {
-        console.warn('Highlight wrapping failed.', e);
-      }
+      // Fallback
+      targetBlock.classList.add('tts-highlight-fallback');
+      targetBlock.style.backgroundColor = 'rgba(255, 255, 0, 0.4)';
     }
 
     // Always smoothly scroll to keep the text in the vertical center of the screen
-    const rect = range.getBoundingClientRect();
+    const rect = targetBlock.getBoundingClientRect();
     const elementCenterY = rect.top + (rect.height / 2);
     const viewportCenterY = window.innerHeight / 2;
     const scrollOffset = elementCenterY - viewportCenterY;
@@ -68,12 +66,65 @@ function highlightText(searchText) {
       top: scrollOffset, 
       behavior: 'smooth' 
     });
-  }
+  } else {
+    // If the exact block match fails, try window.find (good for standard paragraphs)
+    const textToFind = searchText.trim();
+    const selection = window.getSelection();
+    
+    // Save user's current selection so we don't annoy them
+    const originalRange = selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
+    
+    selection.removeAllRanges();
 
-  // Restore the user's original selection
-  selection.removeAllRanges();
-  if (originalRange) {
-    selection.addRange(originalRange);
+    // NEW: If we have a tracked position, start searching FORWARD from there
+    if (ttsCursorRange) {
+      const searchStartRange = ttsCursorRange.cloneRange();
+      searchStartRange.collapse(false); // Move to the end of the last highlighted sentence
+      selection.addRange(searchStartRange);
+    }
+
+    // window.find now searches forward from the hidden cursor
+    const found = window.find(textToFind, false, false, true, false, false, false);
+
+    if (found && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0).cloneRange();
+      
+      // NEW: Save this new position as the starting point for the next sentence
+      ttsCursorRange = range.cloneRange();
+      
+      // Attempt non-destructive CSS Highlight API (Chrome 105+)
+      if (typeof Highlight !== 'undefined' && typeof CSS !== 'undefined' && CSS.highlights) {
+        const highlight = new Highlight(range);
+        CSS.highlights.set('tts-highlight', highlight);
+      } else {
+        // Fallback: Wrap in a <mark> tag
+        try {
+          const mark = document.createElement('mark');
+          mark.className = 'tts-highlight';
+          mark.appendChild(range.extractContents());
+          range.insertNode(mark);
+        } catch (e) {
+          console.warn('Highlight wrapping failed.', e);
+        }
+      }
+
+      // Always smoothly scroll to keep the text in the vertical center of the screen
+      const rect = range.getBoundingClientRect();
+      const elementCenterY = rect.top + (rect.height / 2);
+      const viewportCenterY = window.innerHeight / 2;
+      const scrollOffset = elementCenterY - viewportCenterY;
+      
+      window.scrollBy({ 
+        top: scrollOffset, 
+        behavior: 'smooth' 
+      });
+    }
+
+    // Restore the user's original selection
+    selection.removeAllRanges();
+    if (originalRange) {
+      selection.addRange(originalRange);
+    }
   }
 }
 
@@ -129,14 +180,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       ttsCursorRange.collapse(true);
 
       const chunks = [];
-      const blocks = mainContent.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre');
+      const blocks = mainContent.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, table');
       
       blocks.forEach(block => {
         // Skip elements that are hidden
         if (block.offsetParent === null) return;
         
         // Skip list items that are just containers for other blocks we already extracted
-        if (block.tagName === 'LI' && block.querySelector('p, h1, h2, h3, h4, h5, h6, pre')) return;
+        if (block.tagName === 'LI' && block.querySelector('p, h1, h2, h3, h4, h5, h6, pre, table')) return;
+
+        // Skip any block that is inside a table or pre (except the table or pre itself)
+        if (block.tagName !== 'TABLE' && block.closest('table')) return;
+        if (block.tagName !== 'PRE' && block.closest('pre')) return;
 
         let text = block.innerText;
         if (text && text.trim()) {

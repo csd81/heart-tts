@@ -7,6 +7,7 @@ let currentVoice = "af_bella";
 let currentSpeed = 1.0;
 let currentStreamId = 0;
 let currentModel = "supertonic";
+let currentAbortController = null;
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "START_STREAM") {
@@ -32,6 +33,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ wasPlaying: false });
     }
   } else if (message.type === "NEXT_CHUNK") {
+    if (currentAbortController) {
+      currentAbortController.abort();
+      currentAbortController = null;
+    }
     if (currentSource) {
       currentSource.onended = null;
       try { currentSource.stop(); } catch(e) {}
@@ -40,6 +45,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     currentIndex++;
     playNextChunk(currentStreamId);
   } else if (message.type === "PREV_CHUNK") {
+    if (currentAbortController) {
+      currentAbortController.abort();
+      currentAbortController = null;
+    }
     if (currentSource) {
       currentSource.onended = null;
       try { currentSource.stop(); } catch(e) {}
@@ -52,6 +61,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 function stopPlayback() {
+  if (currentAbortController) {
+    currentAbortController.abort();
+    currentAbortController = null;
+  }
   if (currentSource) {
     currentSource.onended = null;
     try {
@@ -116,6 +129,12 @@ async function playNextChunk(streamId) {
   console.log("Playing chunk:", text.substring(0, 30) + "...");
 
   try {
+    if (currentAbortController) {
+      currentAbortController.abort();
+    }
+    currentAbortController = new AbortController();
+    const signal = currentAbortController.signal;
+
     let endpoint = "http://127.0.0.1:8000/audio/speech";
     let payload = {
       input: text,
@@ -131,7 +150,8 @@ async function playNextChunk(streamId) {
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: signal
     });
 
     if (!response.ok) throw new Error("Server Status: " + response.status);
@@ -156,6 +176,10 @@ async function playNextChunk(streamId) {
     source.start();
 
   } catch (err) {
+    if (err.name === 'AbortError') {
+      console.log('Fetch aborted for chunk:', text.substring(0, 30) + "...");
+      return;
+    }
     console.error("Playback failed for chunk:", text, err);
     if (streamId === currentStreamId) {
       playNextChunk(streamId);
