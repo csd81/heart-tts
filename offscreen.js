@@ -7,7 +7,7 @@ let currentSpeed = 1.0;
 let currentStreamId = 0;
 let currentModel = "supertonic";
 
-chrome.runtime.onMessage.addListener(async (message) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "START_STREAM") {
     currentStreamId++;
     const thisStreamId = currentStreamId;
@@ -22,7 +22,15 @@ chrome.runtime.onMessage.addListener(async (message) => {
     if (!isPlaying) {
       playNextChunk(thisStreamId);
     }
+  } else if (message.type === "TOGGLE_PLAYBACK") {
+    if (isPlaying) {
+      stopPlayback();
+      sendResponse({ wasPlaying: true });
+    } else {
+      sendResponse({ wasPlaying: false });
+    }
   }
+  return true;
 });
 
 function stopPlayback() {

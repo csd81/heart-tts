@@ -23,7 +23,11 @@ kokoro = Kokoro("kokoro-v1.0.onnx", "voices-v1.0.bin")
 async def get_voices():
     # Return exactly the format the extension expects
     return {
-        "voices": ["af_bella", "af_sarah", "af_sky", "am_adam", "am_michael", "bf_emma", "bf_isabella"]
+        "voices": [
+            "af_alloy", "af_aoede", "af_bella", "af_heart", "af_jessica", 
+            "af_kore", "af_nicole", "af_nova", "af_river", "af_sarah", 
+            "af_sky"
+        ]
     }
 
 # 3. SPEECH ENDPOINT: Matches extension's POST to "/audio/speech"

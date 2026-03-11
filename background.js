@@ -100,3 +100,31 @@ async function setupOffscreenDocument(path) {
     }
   }
 }
+
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command === "toggle_reader") {
+    let stopped = false;
+    try {
+      stopped = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ type: "TOGGLE_PLAYBACK" }, (response) => {
+          if (chrome.runtime.lastError) resolve(false);
+          else resolve(response && response.wasPlaying);
+        });
+      });
+    } catch (e) {}
+
+    if (stopped) return; // We stopped playback, so we don't start it again
+
+    // Wasn't playing, start reading
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) return;
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { action: "GET_FULL_PAGE_TEXT" });
+      if (response && response.text) {
+        processAndPlay(response.text);
+      }
+    } catch (e) {
+      console.error("Could not read page", e);
+    }
+  }
+});

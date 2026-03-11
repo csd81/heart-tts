@@ -67,7 +67,11 @@ async function updateVoicesForModel(modelName) {
   voiceSelect.innerHTML = '';
   
   if (modelName === "kokoro") {
-    const voices = window.kokoroVoices || ["af_bella", "af_sarah", "am_adam"];
+    const voices = window.kokoroVoices || [
+      "af_alloy", "af_aoede", "af_bella", "af_heart", "af_jessica", 
+      "af_kore", "af_nicole", "af_nova", "af_river", "af_sarah", 
+      "af_sky"
+    ];
     voices.forEach(voice => {
       const opt = document.createElement('option');
       opt.value = voice; opt.textContent = voice;
