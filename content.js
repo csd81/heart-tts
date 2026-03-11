@@ -1,4 +1,5 @@
 let lastClickedElement = null;
+let ttsCursorRange = null; // NEW: Tracks the reader's current position in the DOM
 
 // --- Highlighting & Scrolling Logic ---
 function clearHighlights() {
@@ -19,19 +20,34 @@ function highlightText(searchText) {
 
   const textToFind = searchText.trim();
   const selection = window.getSelection();
+  
+  // Save user's current selection so we don't annoy them
   const originalRange = selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
   
   selection.removeAllRanges();
 
+  // NEW: If we have a tracked position, start searching FORWARD from there
+  if (ttsCursorRange) {
+    const searchStartRange = ttsCursorRange.cloneRange();
+    searchStartRange.collapse(false); // Move to the end of the last highlighted sentence
+    selection.addRange(searchStartRange);
+  }
+
+  // window.find now searches forward from the hidden cursor
   const found = window.find(textToFind, false, false, true, false, false, false);
 
   if (found && selection.rangeCount > 0) {
     const range = selection.getRangeAt(0).cloneRange();
     
+    // NEW: Save this new position as the starting point for the next sentence
+    ttsCursorRange = range.cloneRange();
+    
+    // Attempt non-destructive CSS Highlight API (Chrome 105+)
     if (typeof Highlight !== 'undefined' && typeof CSS !== 'undefined' && CSS.highlights) {
       const highlight = new Highlight(range);
       CSS.highlights.set('tts-highlight', highlight);
     } else {
+      // Fallback: Wrap in a <mark> tag
       try {
         const mark = document.createElement('mark');
         mark.className = 'tts-highlight';
@@ -42,6 +58,7 @@ function highlightText(searchText) {
       }
     }
 
+    // Always smoothly scroll to keep the text in the vertical center of the screen
     const rect = range.getBoundingClientRect();
     const elementCenterY = rect.top + (rect.height / 2);
     const viewportCenterY = window.innerHeight / 2;
@@ -53,6 +70,7 @@ function highlightText(searchText) {
     });
   }
 
+  // Restore the user's original selection
   selection.removeAllRanges();
   if (originalRange) {
     selection.addRange(originalRange);
@@ -60,7 +78,6 @@ function highlightText(searchText) {
 }
 
 // --- Deep DOM Traversal Logic ---
-// Finds the closest major structural block to prevent starting mid-sentence if the user clicked a bold word
 function getClosestBlockElement(el) {
   const blockTags = ['P', 'DIV', 'LI', 'TD', 'TH', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'ARTICLE', 'SECTION', 'MAIN', 'BLOCKQUOTE', 'PRE'];
   let current = el;
@@ -86,6 +103,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   
   if (request.action === "CLEAR_HIGHLIGHT") {
     clearHighlights();
+    ttsCursorRange = null; // NEW: Reset the tracker completely when audio stops
     return;
   }
 
@@ -93,12 +111,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "GET_FULL_PAGE_TEXT") {
     let mainContent = null;
 
-    // 1. Hyperskill-specific logic
     if (window.location.hostname.includes("hyperskill.org")) {
       mainContent = document.querySelector('.step-text .content') || document.querySelector('.content');
     }
 
-    // 2. Generic fallback for all other websites (or if Hyperskill elements are missing)
     if (!mainContent) {
       mainContent = document.querySelector('article') || 
                     document.querySelector('[role="main"]') || 
@@ -107,6 +123,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     
     if (mainContent && mainContent.innerText) {
+      // NEW: Initialize the tracker at the very top of the article
+      ttsCursorRange = document.createRange();
+      ttsCursorRange.selectNodeContents(mainContent);
+      ttsCursorRange.collapse(true);
+
       return sendResponse({ text: mainContent.innerText.trim() });
     } else {
       return sendResponse({ text: "" });
@@ -122,15 +143,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     let startNode = getClosestBlockElement(lastClickedElement);
     let boundary = null;
 
-    // 1. Hyperskill-specific boundary
     if (window.location.hostname.includes("hyperskill.org")) {
       boundary = startNode.closest('.step-text .content, .content');
     }
 
-    // 2. Generic fallback boundary for all other websites
     if (!boundary) {
       boundary = startNode.closest('article, [role="main"], main') || document.body;
     }
+
+    // NEW: Initialize the tracker exactly where the user clicked
+    ttsCursorRange = document.createRange();
+    ttsCursorRange.selectNodeContents(startNode);
+    ttsCursorRange.collapse(true);
     
     let fullText = "";
 
@@ -139,7 +163,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 
     let node = startNode;
-    // Bubble up, but STOP when we hit the boundary
     while (node && node !== boundary && node !== document.body) {
       let sibling = node.nextElementSibling;
       
