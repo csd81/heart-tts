@@ -19,16 +19,19 @@ async function processAndPlay(text) {
     .split(/(?<!\b(?:Mr|Mrs|Ms|Dr|Jr|Sr|Prof)\.)(?<=[.!?])\s+(?=[A-Z0-9])|\n+/)
     .filter(chunk => chunk.trim().length > 0); // Ignore empty strings
 
-  const settings = await chrome.storage.local.get(['selectedVoice', 'playbackSpeed']);
-  const currentVoice = settings.selectedVoice || "af_bella";
-  const currentSpeed = settings.playbackSpeed || 1.2;
+// Pull the model, voice, and speed from storage
+  const settings = await chrome.storage.local.get(['selectedModel', 'selectedVoice', 'playbackSpeed']);
+  const currentModel = settings.selectedModel || "supertonic";
+  const currentVoice = settings.selectedVoice || "Sarah";
+  const currentSpeed = settings.playbackSpeed || 1.0;
 
   await setupOffscreenDocument('offscreen.html');
 
-  // Send message immediately after awaiting creation
+  // Add the 'model' to the outgoing stream payload
   chrome.runtime.sendMessage({
     type: "START_STREAM",
     chunks: chunks,
+    model: currentModel,
     voice: currentVoice,
     speed: currentSpeed
   });

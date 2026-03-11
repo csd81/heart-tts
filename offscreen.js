@@ -5,18 +5,17 @@ let audioContext = null;
 let currentVoice = "af_bella";
 let currentSpeed = 1.0;
 let currentStreamId = 0;
+let currentModel = "supertonic";
 
 chrome.runtime.onMessage.addListener(async (message) => {
   if (message.type === "START_STREAM") {
-    console.log("Stream received. Chunks:", message.chunks.length);
-
-    // Increment stream ID to invalidate any pending old callbacks
     currentStreamId++;
     const thisStreamId = currentStreamId;
-
     stopPlayback();
 
-    currentVoice = message.voice || "af_bella";
+    // NEW: Capture the model from the background script
+    currentModel = message.model || "supertonic";
+    currentVoice = message.voice || "Sarah";
     currentSpeed = message.speed || 1.0;
     playbackQueue = message.chunks;
 
@@ -88,14 +87,22 @@ async function playNextChunk(streamId) {
   console.log("Playing chunk:", text.substring(0, 30) + "...");
 
   try {
-    const response = await fetch("http://127.0.0.1:8000/audio/speech", {
+    let endpoint = "http://127.0.0.1:8000/audio/speech";
+    let payload = {
+      input: text,
+      model: currentModel,
+      voice: currentVoice,
+      speed: currentSpeed
+    };
+
+    // Kokoro server has a slightly different format (doesn't expect model param, expects speed float etc)
+    // but its endpoint is also /audio/speech. If the user selects kokoro, we just send it there.
+    // The kokoro server ignores the 'model' field since it evaluates locally. 
+    
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        input: text,
-        voice: currentVoice,
-        speed: currentSpeed
-      })
+      body: JSON.stringify(payload)
     });
 
     if (!response.ok) throw new Error("Server Status: " + response.status);

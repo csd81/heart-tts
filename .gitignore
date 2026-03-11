@@ -1,5 +1,8 @@
 # Virtual environment
 venv/
+assets/
+assets_v2/
+
 
 # Large model and binary files
 kokoro-v1.0.onnx

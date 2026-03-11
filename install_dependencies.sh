@@ -1,9 +1,10 @@
+ 
 #!/bin/bash
 
 # Exit on error
 set -e
 
-echo "🚀 Starting Heart-TTS Backend Setup..."
+echo "🚀 Starting Supertonic TTS Backend Setup..."
 
 # 1. Create Virtual Environment
 if [ ! -d "venv" ]; then
@@ -19,23 +20,37 @@ source venv/bin/activate
 # 3. Install/Upgrade Dependencies
 echo "pip 🆙 Upgrading pip and installing dependencies..."
 pip install --upgrade pip
-pip install fastapi uvicorn kokoro-onnx soundfile
+pip install kokoro-onnx
+pip install fastapi uvicorn pydantic soundfile numpy onnxruntime
 
-# 4. Download Model Files (if they don't exist)
-# kokoro-v1.0.onnx
-if [ ! -f "kokoro-v1.0.onnx" ]; then
-    echo "📥 Downloading Kokoro ONNX model..."
-    curl -L https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx -o kokoro-v1.0.onnx
+# 4. Download Model Files & Scripts
+echo "⚙️ Setting up Git LFS (required for large ONNX models)..."
+sudo apt-get update
+sudo apt-get install git-lfs
+git lfs install
+
+# Download the actual ONNX model weights into an 'assets' folder
+if [ ! -d "assets" ]; then
+    echo "📥 Downloading Supertonic ONNX models from Hugging Face..."
+    git clone https://huggingface.co/Supertone/supertonic assets
 else
-    echo "✅ Model file already present."
+    echo "✅ Model assets already present in 'assets/' directory."
 fi
 
-# voices-v1.0.bin
-if [ ! -f "voices-v1.0.bin" ]; then
-    echo "📥 Downloading voice data..."
-    curl -L https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin -o voices-v1.0.bin
+# Download Supertonic 2
+if [ ! -d "assets_v2" ]; then
+    echo "📥 Downloading Supertonic 2 ONNX models from Hugging Face..."
+    git clone https://huggingface.co/Supertone/supertonic-2 assets_v2
 else
-    echo "✅ Voice data already present."
+    echo "✅ Model assets already present in 'assets_v2/' directory."
+fi
+
+# Download the official Python inference scripts from Supertone
+if [ ! -d "supertonic_scripts" ]; then
+    echo "📥 Downloading Supertonic inference scripts..."
+    git clone https://github.com/supertone-inc/supertonic.git supertonic_scripts
+else
+    echo "✅ Supertonic inference scripts already present."
 fi
 
 echo "---"
