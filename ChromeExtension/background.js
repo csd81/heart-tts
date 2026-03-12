@@ -21,7 +21,7 @@ async function processAndPlay(inputData) {
 
 // Pull the model, voice, and speed from storage
   const settings = await chrome.storage.local.get(['selectedModel', 'selectedVoice', 'playbackSpeed']);
-  const currentModel = settings.selectedModel || "supertonic";
+  const currentModel = settings.selectedModel || "supertonic-2";
   const currentVoice = settings.selectedVoice || "Sarah";
   const currentSpeed = settings.playbackSpeed || 1.0;
 

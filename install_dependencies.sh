@@ -29,14 +29,6 @@ sudo apt-get update
 sudo apt-get install git-lfs
 git lfs install
 
-# Download the actual ONNX model weights into an 'assets' folder
-if [ ! -d "assets" ]; then
-    echo "📥 Downloading Supertonic ONNX models from Hugging Face..."
-    git clone https://huggingface.co/Supertone/supertonic assets
-else
-    echo "✅ Model assets already present in 'assets/' directory."
-fi
-
 # Download Supertonic 2
 if [ ! -d "assets_v2" ]; then
     echo "📥 Downloading Supertonic 2 ONNX models from Hugging Face..."

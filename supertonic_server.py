@@ -22,17 +22,10 @@ current_loaded_model_name = None
 text_to_speech = None
 
 def get_model_info(model_name: str):
-    if model_name == "supertonic-2" and os.path.exists("assets_v2"):
-        return {
-            "onnx_dir": "assets_v2/onnx" if os.path.exists("assets_v2/onnx") else "assets_v2",
-            "voice_dir": "assets_v2/voice_styles" if os.path.exists("assets_v2/voice_styles") else "assets_v2"
-        }
-    else:
-        # Default to supertonic
-        return {
-            "onnx_dir": "assets/onnx" if os.path.exists("assets/onnx") else "assets",
-            "voice_dir": "assets/voice_styles" if os.path.exists("assets/voice_styles") else "assets"
-        }
+    return {
+        "onnx_dir": "assets_v2/onnx" if os.path.exists("assets_v2/onnx") else "assets_v2",
+        "voice_dir": "assets_v2/voice_styles" if os.path.exists("assets_v2/voice_styles") else "assets_v2"
+    }
 
 def load_tts_model(model_name: str):
     global current_loaded_model_name, text_to_speech
@@ -55,13 +48,9 @@ def load_tts_model(model_name: str):
         return False
 
 # Attempt to pre-load whatever is first available
-AVAILABLE_MODELS = ["supertonic"]
+AVAILABLE_MODELS = ["supertonic-2"]
 if os.path.exists("assets_v2"):
-    AVAILABLE_MODELS.append("supertonic-2")
-    # Prefer supertonic-2 as default if it exists
-    load_tts_model("supertonic-2") 
-else:
-    load_tts_model("supertonic")
+    load_tts_model("supertonic-2")
 
 app = FastAPI()
 
@@ -76,13 +65,13 @@ app.add_middleware(
 class TTSRequest(BaseModel):
     input: str
     voice: str = "M1"  # Supertonic voices are usually named like M1, F1, etc.
-    model: str = "supertonic"
+    model: str = "supertonic-2"
     speed: float = 1.05 # Supertonic's default speed in example_onnx.py is 1.05
 
 @app.get("/api/config")
 def get_config():
     # Dynamically find voices based on model
-    info = get_model_info(current_loaded_model_name or "supertonic")
+    info = get_model_info(current_loaded_model_name or "supertonic-2")
     voice_files = glob.glob(os.path.join(info['voice_dir'], "*.json"))
     voices = [os.path.splitext(os.path.basename(v))[0] for v in voice_files]
     if not voices:
