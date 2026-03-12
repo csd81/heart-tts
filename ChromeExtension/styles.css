@@ -32,13 +32,13 @@
     /* High contrast Grey, 30% visible.
        - On Black: Looks like a distinct, light grey. preserves white text.
        - On White: Looks like classic grey selection. preserves black text. */
-    background-color: rgba(128, 128, 128, 0.4);
+    background-color: rgba(128, 128, 128, 0.2);
     color: inherit;
     /* Preserves the website's text color (important!) */
 }
 
 /* Fallback for older browsers not supporting modern Highlight API */
 mark.tts-highlight {
-    background-color: rgba(128, 128, 128, 0.4);
+    background-color: rgba(128, 128, 128, 0.2);
     color: inherit border-radius: 2px;
 }
