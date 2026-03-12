@@ -29,8 +29,13 @@ function highlightText(searchText) {
   
   // Find the exact node that corresponds to this chunk text
   let targetBlock = null;
-  const blocks = document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, table');
-  for (let block of blocks) {
+  const blocks = Array.from(document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, table'));
+  
+  // Start searching from the last tracked index, or 0 if none
+  let startIndex = window.lastMatchedBlockIndex || 0;
+  
+  for (let i = startIndex; i < blocks.length; i++) {
+    let block = blocks[i];
     if (block.offsetParent === null) continue;
     if (block.tagName === 'LI' && block.querySelector('p, h1, h2, h3, h4, h5, h6, pre, table')) continue;
     if (block.tagName !== 'TABLE' && block.closest('table')) continue;
@@ -38,7 +43,26 @@ function highlightText(searchText) {
 
     if (block.innerText && block.innerText.trim() === searchText.trim()) {
       targetBlock = block;
+      window.lastMatchedBlockIndex = i + 1; // Save index to resume from next time
       break;
+    }
+  }
+
+  // If we couldn't find it going forward (maybe the user rewound/went backwards),
+  // fallback to searching from the beginning
+  if (!targetBlock) {
+    for (let i = 0; i < startIndex; i++) {
+      let block = blocks[i];
+      if (block.offsetParent === null) continue;
+      if (block.tagName === 'LI' && block.querySelector('p, h1, h2, h3, h4, h5, h6, pre, table')) continue;
+      if (block.tagName !== 'TABLE' && block.closest('table')) continue;
+      if (block.tagName !== 'PRE' && block.closest('pre')) continue;
+  
+      if (block.innerText && block.innerText.trim() === searchText.trim()) {
+        targetBlock = block;
+        window.lastMatchedBlockIndex = i + 1;
+        break;
+      }
     }
   }
 
@@ -57,15 +81,7 @@ function highlightText(searchText) {
     }
 
     // Always smoothly scroll to keep the text in the vertical center of the screen
-    const rect = targetBlock.getBoundingClientRect();
-    const elementCenterY = rect.top + (rect.height / 2);
-    const viewportCenterY = window.innerHeight / 2;
-    const scrollOffset = elementCenterY - viewportCenterY;
-    
-    window.scrollBy({ 
-      top: scrollOffset, 
-      behavior: 'smooth' 
-    });
+    targetBlock.scrollIntoView({ behavior: "smooth", block: "center" });
   } else {
     // If the exact block match fails, try window.find (good for standard paragraphs)
     const textToFind = searchText.trim();
@@ -83,10 +99,15 @@ function highlightText(searchText) {
       selection.addRange(searchStartRange);
     }
 
+    // Save original scroll so we eliminate jump
+    const oldScrollX = window.scrollX;
+    const oldScrollY = window.scrollY;
+
     // window.find now searches forward from the hidden cursor
     const found = window.find(textToFind, false, false, true, false, false, false);
 
     if (found && selection.rangeCount > 0) {
+      window.scrollTo(oldScrollX, oldScrollY); // Revert the instant scroll from window.find
       const range = selection.getRangeAt(0).cloneRange();
       
       // NEW: Save this new position as the starting point for the next sentence
@@ -110,12 +131,12 @@ function highlightText(searchText) {
 
       // Always smoothly scroll to keep the text in the vertical center of the screen
       const rect = range.getBoundingClientRect();
-      const elementCenterY = rect.top + (rect.height / 2);
+      const absoluteTop = rect.top + window.scrollY;
+      const elementCenterY = absoluteTop + (rect.height / 2);
       const viewportCenterY = window.innerHeight / 2;
-      const scrollOffset = elementCenterY - viewportCenterY;
       
-      window.scrollBy({ 
-        top: scrollOffset, 
+      window.scrollTo({ 
+        top: elementCenterY - viewportCenterY, 
         behavior: 'smooth' 
       });
     }
@@ -154,7 +175,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   
   if (request.action === "CLEAR_HIGHLIGHT") {
     clearHighlights();
-    ttsCursorRange = null; // NEW: Reset the tracker completely when audio stops
+    ttsCursorRange = null; // Reset the tracker completely when audio stops
+    window.lastMatchedBlockIndex = 0; // Reset block tracker
     return;
   }
 

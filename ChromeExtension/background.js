@@ -23,7 +23,7 @@ async function processAndPlay(inputData) {
   const settings = await chrome.storage.local.get(['selectedModel', 'selectedVoice', 'playbackSpeed']);
   const currentModel = settings.selectedModel || "supertonic-2";
   const currentVoice = settings.selectedVoice || "Sarah";
-  const currentSpeed = settings.playbackSpeed || 1.0;
+  const currentSpeed = settings.playbackSpeed || 1.2;
 
   await setupOffscreenDocument('offscreen.html');
 

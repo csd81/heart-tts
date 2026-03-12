@@ -4,7 +4,7 @@ let isPlaying = false;
 let currentSource = null;
 let audioContext = null;
 let currentVoice = "af_bella";
-let currentSpeed = 1.0;
+let currentSpeed = 1.2;
 let currentStreamId = 0;
 let currentModel = "supertonic-2";
 let currentAbortController = null;
@@ -18,7 +18,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // NEW: Capture the model from the background script
     currentModel = message.model || "supertonic-2";
     currentVoice = message.voice || "Sarah";
-    currentSpeed = message.speed || 1.0;
+    currentSpeed = message.speed || 1.2;
     playbackQueue = message.chunks;
     currentIndex = 0;
 
