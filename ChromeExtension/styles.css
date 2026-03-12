@@ -1,0 +1,44 @@
+.gemini-read-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 50%;
+    color: var(--gem-sys-color-on-surface-variant, #444746);
+    /* Fallback color */
+    margin-right: 4px;
+    /* Space between buttons */
+    transition: background-color 0.2s;
+}
+
+.gemini-read-button:hover {
+    background-color: rgba(68, 71, 70, 0.08);
+    /* Gemin-like hover */
+    color: var(--gem-sys-color-on-surface, #1f1f1f);
+}
+
+.gemini-read-button svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+}
+
+/* --- Highlighting Styles --- */
+::highlight(tts-highlight) {
+    /* High contrast Grey, 30% visible.
+       - On Black: Looks like a distinct, light grey. preserves white text.
+       - On White: Looks like classic grey selection. preserves black text. */
+    background-color: rgba(128, 128, 128, 0.4);
+    color: inherit;
+    /* Preserves the website's text color (important!) */
+}
+
+/* Fallback for older browsers not supporting modern Highlight API */
+mark.tts-highlight {
+    background-color: rgba(128, 128, 128, 0.4);
+    color: inherit border-radius: 2px;
+}

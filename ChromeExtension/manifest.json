@@ -24,7 +24,7 @@
         "default": "Alt+Shift+R"
       },
       "description": "Start/Stop reading page",
-      "global": false
+      "global": true
     }
   },
   "content_scripts": [

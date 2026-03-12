@@ -9,8 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-# Add the cloned supertonic_scripts/py folder to Python's path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "supertonic_scripts", "py")))
+# Add the py folder to Python's path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "py")))
 
 try:
     from helper import load_voice_style

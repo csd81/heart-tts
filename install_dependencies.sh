@@ -46,11 +46,13 @@ else
 fi
 
 # Download the official Python inference scripts from Supertone
-if [ ! -d "supertonic_scripts" ]; then
+if [ ! -d "py" ]; then
     echo "📥 Downloading Supertonic inference scripts..."
     git clone https://github.com/supertone-inc/supertonic.git supertonic_scripts
+    mv supertonic_scripts/py ./py
+    rm -rf supertonic_scripts
 else
-    echo "✅ Supertonic inference scripts already present."
+    echo "✅ Supertonic python scripts already present."
 fi
 
 echo "---"
