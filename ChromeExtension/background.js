@@ -131,6 +131,10 @@ chrome.commands.onCommand.addListener(async (command) => {
       }
     } catch (e) {
       console.error("Could not read page", e);
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => alert("TTS Reader: Could not read page. Please refresh the tab if you just updated the extension!")
+      }).catch(err => console.error("Could not show alert", err));
     }
   }
 });

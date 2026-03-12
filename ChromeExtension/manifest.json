@@ -21,10 +21,9 @@
   "commands": {
     "toggle_reader": {
       "suggested_key": {
-        "default": "Alt+Shift+R"
+        "default": "Ctrl+Shift+S"
       },
-      "description": "Start/Stop reading page",
-      "global": true
+      "description": "Start/Stop reading page"
     }
   },
   "content_scripts": [
