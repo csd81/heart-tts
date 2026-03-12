@@ -164,8 +164,24 @@
     pageDiv.appendChild(overlay);
     currentOverlay = overlay;
 
-    // Scroll to the first line's viewport position on screen
-    overlay.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Scroll to the highlight position — NOT the whole page.
+    // The canvas is CSS-scaled to 100% width; compute the scale factor.
+    const cssScale = pageDiv.offsetWidth / viewport.width;
+    // Get the canvas-pixel Y of the first highlighted line's top edge
+    const firstLineTopPx = Math.min(...lines.map(l => {
+      const [, vy] = viewport.convertToViewportPoint(l.x1, l.y2);
+      return vy;
+    }));
+    // Convert to CSS pixels within pageDiv
+    const anchorCSSY = firstLineTopPx * cssScale;
+
+    // Place a tiny invisible anchor at that Y and scrollIntoView it
+    const anchor = document.createElement('div');
+    anchor.style.cssText = `position:absolute; top:${anchorCSSY}px; left:0; width:1px; height:1px; pointer-events:none;`;
+    pageDiv.appendChild(anchor);
+    anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => anchor.remove(), 1500);
+
   }
 
   // ─── TTS Message Listeners ────────────────────────────────────────────────
