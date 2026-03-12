@@ -6,6 +6,18 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
+// Intercept navigations to .pdf URLs and redirect to the built-in PDF viewer
+const PDF_VIEWER = chrome.runtime.getURL('pdf-viewer.html');
+const PDF_PATTERN = /^(https?:|file:).+\.pdf(\?.*)?$/i;
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  const url = changeInfo.url || tab.url;
+  if (!url || !PDF_PATTERN.test(url)) return;
+  // Don't redirect if we're already on our own viewer page
+  if (url.startsWith(PDF_VIEWER)) return;
+  chrome.tabs.update(tabId, { url: PDF_VIEWER + '?url=' + encodeURIComponent(url) });
+});
+
 async function processAndPlay(inputData) {
   if (!inputData) return;
 

@@ -221,6 +221,39 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
       });
 
+      // If the page embeds content in an iframe (e.g. MathWorks Quick Reference),
+      // try reading text from same-origin iframes before giving up.
+      if (chunks.length === 0) {
+        try {
+          const iframes = document.querySelectorAll('iframe');
+          for (const iframe of iframes) {
+            const iDoc = iframe.contentDocument || iframe.contentWindow?.document;
+            if (!iDoc) continue;
+            const iMain = iDoc.querySelector('article, [role="main"], main') || iDoc.body;
+            if (!iMain) continue;
+
+            // Initialize the TTS cursor inside the iframe's content
+            ttsCursorRange = document.createRange();
+            ttsCursorRange.selectNodeContents(iMain);
+            ttsCursorRange.collapse(true);
+
+            const iBlocks = iMain.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, table');
+            iBlocks.forEach(block => {
+              if (block.offsetParent === null) return;
+              if (block.tagName === 'LI' && block.querySelector('p, h1, h2, h3, h4, h5, h6, pre, table')) return;
+              if (block.tagName !== 'TABLE' && block.closest('table')) return;
+              if (block.tagName !== 'PRE' && block.closest('pre')) return;
+              const text = block.innerText;
+              if (text && text.trim()) chunks.push(text.trim());
+            });
+
+            if (chunks.length > 0) break; // Stop after first iframe that yields content
+          }
+        } catch (e) {
+          // Cross-origin iframes will throw — that's expected, just skip them
+        }
+      }
+
       // If we couldn't find blocks for some reason, fallback to innerText split by newlines
       if (chunks.length === 0 && mainContent.innerText) {
          return sendResponse({ chunks: mainContent.innerText.trim().split(/\r?\n\s*\n|\n/).filter(c => c.trim().length > 0) });

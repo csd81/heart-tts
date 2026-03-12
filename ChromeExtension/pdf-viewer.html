@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PDF Viewer – Kokoro TTS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Georgia, serif; background: #e8e8e8; }
+    #loading { text-align: center; padding: 60px; font-size: 18px; color: #555; }
+    #error   { display: none; text-align: center; padding: 60px; color: #cc3300; }
+    main { max-width: 900px; margin: 24px auto; padding: 0 0 80px; }
+
+    .pdf-page {
+      position: relative;   /* overlay canvas anchors here */
+      background: #fff;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .pdf-page canvas { display: block; width: 100%; height: auto; }
+    .page-break { height: 20px; }
+  </style>
+</head>
+<body>
+  <div id="loading">⏳ Loading PDF…</div>
+  <div id="error">❌ Could not load PDF. Enable "Allow access to file URLs" for this extension in chrome://extensions.</div>
+  <main id="content" style="display:none"></main>
+  <script src="lib/pdf.min.js"></script>
+  <script src="pdf-viewer.js"></script>
+</body>
+</html>
