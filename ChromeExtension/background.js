@@ -1,19 +1,19 @@
 chrome.runtime.onInstalled.addListener(() => {
+  // Creating exactly ONE item prevents Chrome from forcing a sub-menu
   chrome.contextMenus.create({
-    id: "read-from-here",
-    title: "Read from here",
+    id: "smart-read",
+    title: "Read Selection / From Here",
     contexts: ["all"]
   });
 });
 
-// Intercept navigations to .pdf URLs and redirect to the built-in PDF viewer
+// PDF Redirection Logic
 const PDF_VIEWER = chrome.runtime.getURL('pdf-viewer.html');
 const PDF_PATTERN = /^(https?:|file:).+\.pdf(\?.*)?$/i;
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   const url = changeInfo.url || tab.url;
   if (!url || !PDF_PATTERN.test(url)) return;
-  // Don't redirect if we're already on our own viewer page
   if (url.startsWith(PDF_VIEWER)) return;
   chrome.tabs.update(tabId, { url: PDF_VIEWER + '?url=' + encodeURIComponent(url) });
 });
@@ -25,13 +25,12 @@ async function processAndPlay(inputData) {
   if (Array.isArray(inputData)) {
     chunks = inputData;
   } else {
-    // Fallback if we get raw text (from right-click menu)
+    // Standardize splitting by paragraph for the server
     chunks = inputData
-      .split(/\r?\n\s*\n|\n/) // Split by blank lines or newlines
-      .filter(chunk => chunk.trim().length > 0); // Ignore empty strings
+      .split(/\r?\n\s*\n|\n/) 
+      .filter(chunk => chunk.trim().length > 0);
   }
 
-// Pull the model, voice, and speed from storage
   const settings = await chrome.storage.local.get(['selectedModel', 'selectedVoice', 'playbackSpeed']);
   const currentModel = settings.selectedModel || "supertonic-2";
   const currentVoice = settings.selectedVoice || "Sarah";
@@ -39,7 +38,6 @@ async function processAndPlay(inputData) {
 
   await setupOffscreenDocument('offscreen.html');
 
-  // Add the 'model' to the outgoing stream payload
   chrome.runtime.sendMessage({
     type: "START_STREAM",
     chunks: chunks,
@@ -50,52 +48,54 @@ async function processAndPlay(inputData) {
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === "read-from-here") {
-    const response = await chrome.tabs.sendMessage(tab.id, { action: "GET_TEXT_FROM_HERE" });
-    if (response && response.text) {
-      await processAndPlay(response.text);
+  if (info.menuItemId === "smart-read") {
+    // 1. Prioritize Selection
+    if (info.selectionText) {
+      try {
+        const response = await chrome.tabs.sendMessage(tab.id, { action: "GET_SELECTED_TEXT" });
+        if (response && response.text) {
+          return await processAndPlay(response.text);
+        }
+      } catch (e) {
+        // Content script might not be injected (e.g. on restricted pages), fallback to raw selection
+        return await processAndPlay(info.selectionText);
+      }
+    }
+    
+    // 2. Fallback: Read from click position
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { action: "GET_TEXT_FROM_HERE" });
+      if (response && response.text) {
+        await processAndPlay(response.text);
+      }
+    } catch (e) {
+      console.error("Content script unreachable:", e);
     }
   }
 });
 
-// Listen for direct requests from content script (Button click) or offscreen doc
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "PLAY_TEXT") {
-    if (request.chunks) {
-      processAndPlay(request.chunks);
-    } else if (request.text) {
-      processAndPlay(request.text);
-    }
+    processAndPlay(request.chunks || request.text);
   }
 
-  // NEW: Forward highlight commands from offscreen doc to the active tab
   if (request.type === "FORWARD_TO_ACTIVE_TAB") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs.length > 0) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          action: request.action,
-          text: request.text
-        }).catch(() => {}); // Ignore errors if the tab is closed/loading
+        chrome.tabs.sendMessage(tabs[0].id, request).catch(() => {});
       }
     });
   }
 });
 
-const MAX_OFFSCREEN_TRIES = 3;
-let creating; // A global promise to avoid concurrency issues
-
+let creating; 
 async function setupOffscreenDocument(path) {
-  // Check existing contexts
   const existingContexts = await chrome.runtime.getContexts({
     contextTypes: ['OFFSCREEN_DOCUMENT'],
-    documentUrls: [path]
+    documentUrls: [chrome.runtime.getURL(path)]
   });
+  if (existingContexts.length > 0) return;
 
-  if (existingContexts.length > 0) {
-    return;
-  }
-
-  // creation lock
   if (creating) {
     await creating;
   } else {
@@ -104,49 +104,7 @@ async function setupOffscreenDocument(path) {
       reasons: ['AUDIO_PLAYBACK'],
       justification: 'Streaming TTS',
     });
-
-    try {
-      await creating;
-    } catch (e) {
-      console.error("Offscreen creation failed:", e);
-      // We must clear creating, otherwise we are stuck forever
-      // We also might want to retry? For now, just ensure we don't lock.
-    } finally {
-      creating = null;
-    }
+    try { await creating; } 
+    finally { creating = null; }
   }
 }
-
-chrome.commands.onCommand.addListener(async (command) => {
-  if (command === "toggle_reader") {
-    let stopped = false;
-    try {
-      stopped = await new Promise((resolve) => {
-        chrome.runtime.sendMessage({ type: "TOGGLE_PLAYBACK" }, (response) => {
-          if (chrome.runtime.lastError) resolve(false);
-          else resolve(response && response.wasPlaying);
-        });
-      });
-    } catch (e) {}
-
-    if (stopped) return; // We stopped playback, so we don't start it again
-
-    // Wasn't playing, start reading
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab) return;
-    try {
-      const response = await chrome.tabs.sendMessage(tab.id, { action: "GET_FULL_PAGE_TEXT" });
-      if (response && response.chunks && response.chunks.length > 0) {
-        processAndPlay(response.chunks);
-      } else if (response && response.text) {
-        processAndPlay(response.text);
-      }
-    } catch (e) {
-      console.error("Could not read page", e);
-      chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => alert("TTS Reader: Could not read page. Please refresh the tab if you just updated the extension!")
-      }).catch(err => console.error("Could not show alert", err));
-    }
-  }
-});
