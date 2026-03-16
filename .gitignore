@@ -3,6 +3,7 @@ venv/
 assets/
 assets_v2/
 supertonic_scripts/
+fish-speech/
 
 
 # Large model and binary files
