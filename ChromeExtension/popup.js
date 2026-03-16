@@ -13,56 +13,40 @@ async function fetchConfig() {
   let allModels = [];
   let allVoices = [];
   
-  // Try fetching Supertonic config
+  // 1. Try Supertonic
   try {
-    const resSuper = await fetch("http://127.0.0.1:8000/api/config", { signal: AbortSignal.timeout(1000) });
-    if (resSuper.ok) {
-      const data = await resSuper.json();
+    const res = await fetch("http://127.0.0.1:8000/api/config", { signal: AbortSignal.timeout(1000) });
+    if (res.ok) {
+      const data = await res.json();
       allModels.push(...data.models);
-      // We'll only load voices for the currently selected model later,
-      // but for now, we just store the supertonic voices as default if supertonic is available.
-      if (allVoices.length === 0) allVoices.push(...data.voices);
+      allVoices.push(...data.voices);
     }
-  } catch (err) { console.warn("Supertonic not found"); }
+  } catch (err) {}
 
-  // Try fetching Kokoro config
-  try {
-    const resKokoro = await fetch("http://127.0.0.1:8000/audio/voices", { signal: AbortSignal.timeout(1000) });
-    if (resKokoro.ok) {
-      // Kokoro is running
-      allModels.push("kokoro");
-      const data = await resKokoro.json();
-      // If no supertonic voices were loaded, or if kokoro is the only one, save these
-      if (allVoices.length === 0) allVoices.push(...data.voices);
-      
-      // Store kokoro voices globally so we can swap them when model changes
-      window.kokoroVoices = data.voices; 
-    }
-  } catch (err) { console.warn("Kokoro not found"); }
+  // 2. Try Kokoro
+  if (allModels.length === 0) {
+    try {
+      const res = await fetch("http://127.0.0.1:8000/audio/voices", { signal: AbortSignal.timeout(1000) });
+      if (res.ok) {
+        allModels.push("kokoro");
+        const data = await res.json();
+        allVoices.push(...data.voices);
+        window.kokoroVoices = data.voices; 
+      }
+    } catch (err) {}
+  }
 
+  // 3. Update UI
   if (allModels.length === 0) {
     modelSelect.innerHTML = '<option>Server Offline</option>';
     voiceSelect.innerHTML = '<option>Server Offline</option>';
     return;
   }
 
-  // Build Model Dropdown
-  modelSelect.innerHTML = '';
-  allModels.forEach(model => {
-    const opt = document.createElement('option');
-    opt.value = model; opt.textContent = model;
-    modelSelect.appendChild(opt);
-  });
-
-  // Build Voice Dropdown (Initial)
-  voiceSelect.innerHTML = '';
-  allVoices.forEach(voice => {
-    const opt = document.createElement('option');
-    opt.value = voice; opt.textContent = voice;
-    voiceSelect.appendChild(opt);
-  });
-
-  // Load saved choices after populating
+  // This replaces your old forEach loops!
+  modelSelect.innerHTML = allModels.map(m => `<option value="${m}">${m}</option>`).join('');
+  voiceSelect.innerHTML = allVoices.map(v => `<option value="${v}">${v}</option>`).join('');
+  
   loadSavedSettings();
 }
 
